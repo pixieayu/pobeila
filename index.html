@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>報備系統</title>
+<link rel="apple-touch-icon" href="pwaicon.png">
+<link rel="icon" href="pwaicon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="報備系統">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+HK:wght@400;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #F2F2F2;
+    --surface: #FFFFFF;
+    --border: #D6E4F0;
+    --border-strong: #B8D0E8;
+    --accent: #1A7FBF;
+    --accent-light: #EBF5FF;
+    --accent-mid: #90C8E8;
+    --text: #1A2D3D;
+    --text-muted: #6B8FAA;
+    --success: #2E7D4F;
+    --success-bg: #EBF7F0;
+    --success-border: #A8D8BC;
+    --tab-active: #1A7FBF;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans HK', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .tab-bar {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 1px 4px rgba(26,127,191,0.06);
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 14px 2px 12px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'Noto Sans HK', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s;
+  }
+  .tab-btn.active { color: var(--tab-active); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 10%; right: 10%;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+  }
+
+  .page { display: none; flex: 1; }
+  .page.active { display: flex; flex-direction: column; }
+
+  /* ── SHARED FORM PAGE ── */
+  .form-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 24px 40px;
+  }
+
+  /* Clock card */
+  .clock-card {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 24px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(26,127,191,0.07);
+  }
+
+  .clock {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 52px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+
+  .clock-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .timer-section { width: 100%; margin-top: 14px; }
+  .timer-label { font-size: 11px; color: var(--text-muted); text-align: center; margin-bottom: 6px; letter-spacing: 0.04em; }
+  .timer-bar-wrap { width: 100%; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .timer-bar { height: 100%; background: var(--accent-mid); border-radius: 2px; transition: width 1s linear; }
+
+  /* Event card (wakeup/sleep time picker) */
+  .event-card {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 24px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(26,127,191,0.07);
+  }
+
+  .event-emoji { font-size: 40px; line-height: 1; margin-bottom: 14px; }
+
+  .time-picker-row { display: flex; align-items: center; gap: 8px; }
+
+  .time-select {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 32px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    border-bottom: 2px solid var(--accent);
+    outline: none;
+    cursor: pointer;
+    text-align: center;
+    width: 72px;
+    padding: 4px 0;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .time-select option { font-size: 16px; font-family: monospace; }
+  .time-select:disabled { color: var(--text-muted); border-color: var(--border); cursor: default; }
+
+  .time-colon { font-family: 'Share Tech Mono', monospace; font-size: 32px; color: var(--accent); line-height: 1; margin-bottom: 4px; }
+
+  .event-date-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.15em; margin-top: 10px; }
+
+  /* Status banner */
+  .status-banner {
+    display: none;
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .status-banner.show { display: block; }
+  .status-banner.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success); font-weight: 500; }
+  .status-banner.warn { background: #FFF8E1; border: 1px solid #FFD54F; color: #7A5800; font-weight: 500; }
+
+  /* Name picker */
+  .name-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    align-self: flex-start;
+    margin-bottom: 8px;
+  }
+
+  .name-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 18px;
+  }
+
+  .name-btn {
+    padding: 11px 4px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-family: 'Noto Sans HK', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    letter-spacing: 0.04em;
+  }
+  .name-btn:hover { border-color: var(--accent-mid); color: var(--accent); }
+  .name-btn.selected { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+  .name-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* Declaration */
+  .declaration {
+    text-align: center;
+    font-size: 15px;
+    line-height: 2;
+    color: var(--text);
+    margin-bottom: 18px;
+    min-height: 52px;
+  }
+  .declaration .chosen-name { color: var(--accent); font-weight: 700; }
+
+  /* Consent */
+  .consent-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: 100%;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    user-select: none;
+  }
+  .consent-row:hover { border-color: var(--accent-mid); }
+  .consent-row.checked { border-color: var(--success); background: var(--success-bg); }
+  .consent-row.disabled { pointer-events: none; opacity: 0.5; }
+
+  .custom-check {
+    width: 22px; height: 22px;
+    border: 2px solid var(--border-strong);
+    border-radius: 5px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    font-size: 13px;
+    color: white;
+  }
+  .consent-row.checked .custom-check { background: var(--success); border-color: var(--success); }
+  .consent-text { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
+
+  /* Submit */
+  .submit-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--border);
+    border: none;
+    border-radius: 12px;
+    color: var(--text-muted);
+    font-family: 'Noto Sans HK', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: not-allowed;
+    transition: all 0.25s;
+    margin-bottom: 16px;
+  }
+  .submit-btn.ready { background: var(--accent); color: white; cursor: pointer; box-shadow: 0 4px 16px rgba(26,127,191,0.25); }
+  .submit-btn.ready:active { transform: scale(0.97); }
+  .submit-btn.done { background: var(--success); color: white; cursor: default; box-shadow: none; }
+
+  .saving-indicator { font-size: 11px; color: var(--accent-mid); text-align: center; margin-top: -6px; margin-bottom: 8px; min-height: 16px; }
+
+  .footer-note { font-size: 12px; color: var(--text-muted); text-align: center; line-height: 1.7; }
+
+  /* Locked screen */
+  .locked-screen {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 32px;
+    text-align: center;
+    gap: 12px;
+  }
+  .locked-screen.show { display: flex; }
+  .locked-icon { font-size: 52px; }
+  .locked-title { font-size: 18px; font-weight: 700; color: var(--success); }
+  .locked-sub { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+
+  /* ── WAKEUP theme (orange-red) ── */
+  #page-wakeup .event-card { box-shadow: 0 2px 8px rgba(212,80,26,0.10); border-color: #F5C4AE; }
+  #page-wakeup .event-emoji + .time-picker-row .time-select { color: #C94A14; border-color: #C94A14; }
+  #page-wakeup .time-colon { color: #C94A14; }
+  #page-wakeup .name-btn:hover { border-color: #F0A070; color: #C94A14; }
+  #page-wakeup .name-btn.selected { background: #FFF3EE; border-color: #C94A14; color: #C94A14; }
+  #page-wakeup .consent-row:hover { border-color: #F0A070; }
+  #page-wakeup .chosen-name { color: #C94A14; }
+  #page-wakeup .submit-btn.ready { background: #C94A14; box-shadow: 0 4px 16px rgba(201,74,20,0.28); }
+  #page-wakeup .saving-indicator { color: #D4845A; }
+  #page-wakeup .locked-title { color: #C94A14; }
+  #page-wakeup .tab-btn.active { color: #C94A14; } /* handled via js */
+
+  /* ── SLEEP theme (deep purple-blue) ── */
+  #page-sleep .event-card { box-shadow: 0 2px 8px rgba(55,40,140,0.10); border-color: #C4BCEC; }
+  #page-sleep .event-emoji + .time-picker-row .time-select { color: #3B2D8C; border-color: #3B2D8C; }
+  #page-sleep .time-colon { color: #3B2D8C; }
+  #page-sleep .name-btn:hover { border-color: #8878C8; color: #3B2D8C; }
+  #page-sleep .name-btn.selected { background: #EEEAF8; border-color: #3B2D8C; color: #3B2D8C; }
+  #page-sleep .consent-row:hover { border-color: #8878C8; }
+  #page-sleep .chosen-name { color: #3B2D8C; }
+  #page-sleep .submit-btn.ready { background: #3B2D8C; box-shadow: 0 4px 16px rgba(55,40,140,0.28); }
+  #page-sleep .saving-indicator { color: #7060B0; }
+  #page-sleep .locked-title { color: #3B2D8C; }
+
+  /* Flash */
+  .flash-overlay { position: fixed; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 100; }
+  .flash-overlay.flash { animation: flash-anim 0.5s ease-out forwards; }
+  @keyframes flash-anim { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+
+  /* ── DASHBOARD ── */
+  .dashboard-page { flex: 1; display: flex; flex-direction: column; padding: 20px 20px 40px; gap: 8px; }
+  .dashboard-date { font-size: 12px; color: var(--text-muted); letter-spacing: 0.08em; text-align: center; margin-bottom: 4px; }
+  .section-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; padding: 8px 4px 4px; border-bottom: 1px solid var(--border); margin-top: 4px; }
+  .person-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+  .person-card.done { border-color: var(--success-border); background: var(--success-bg); }
+  .person-status-icon { font-size: 18px; flex-shrink: 0; width: 26px; text-align: center; }
+  .person-info { flex: 1; }
+  .person-name { font-size: 14px; font-weight: 700; color: var(--text); }
+  .person-card.done .person-name { color: var(--success); }
+  .person-time { font-size: 11px; color: var(--text-muted); margin-top: 1px; font-family: 'Share Tech Mono', monospace; }
+  .section-empty { font-size: 12px; color: var(--text-muted); padding: 10px 4px; font-style: italic; }
+  .dashboard-refresh { align-self: center; margin-top: 12px; padding: 8px 24px; background: none; border: 1px solid var(--border-strong); border-radius: 20px; color: var(--text-muted); font-family: 'Noto Sans HK', sans-serif; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+  .dashboard-refresh:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── 乖乖榜 ── */
+  .board-card {
+    background: var(--surface);
+    border: 1.5px solid #FFD54F;
+    border-radius: 16px;
+    padding: 18px 20px 16px;
+    margin-bottom: 4px;
+  }
+  .board-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #7A5800;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .board-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #FFF3CD;
+  }
+  .board-row:last-child { border-bottom: none; }
+  .board-label { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+  .board-names { font-size: 15px; font-weight: 700; color: #C94A14; letter-spacing: 0.04em; }
+  .board-pending {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 8px 0;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <nav class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('water')">💧 飲水</button>
+    <button class="tab-btn" onclick="switchTab('wakeup')">☀️ 瞓醒</button>
+    <button class="tab-btn" onclick="switchTab('sleep')">🌙 熄燈</button>
+    <button class="tab-btn" onclick="switchTab('dashboard')">📂 報告</button>
+  </nav>
+
+  <!-- WATER PAGE -->
+  <div class="page active" id="page-water">
+    <div class="form-page">
+      <div class="clock-card">
+        <div class="clock" id="clock">--:--</div>
+        <div class="clock-label" id="tz-label">--</div>
+        <div class="timer-section">
+          <div class="timer-label" id="timer-label">距下次報備</div>
+          <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="status-banner success" id="water-status-banner">✅ 報備成功！下一個小時見。</div>
+      <div class="status-banner warn" id="water-warn-banner"></div>
+
+      <div class="name-label">揀你個名</div>
+      <div class="name-grid" id="water-name-grid"></div>
+
+      <div class="declaration" id="water-declaration">
+        我 <span class="chosen-name" id="water-chosen-name">___</span> 已於以上時間飲咗水。
+      </div>
+
+      <div class="consent-row" id="water-consent" onclick="toggleConsent('water')">
+        <div class="custom-check" id="water-check"></div>
+        <div class="consent-text">本人確認屬實，真係飲咗一啖以上。</div>
+      </div>
+
+      <button class="submit-btn" id="water-btn" disabled onclick="submitWater()">水已飲 ✅</button>
+      <div class="saving-indicator" id="water-saving"></div>
+    </div>
+  </div>
+
+  <!-- WAKEUP PAGE -->
+  <div class="page" id="page-wakeup">
+    <div class="form-page" id="wakeup-form">
+      <div class="event-card">
+        <div class="event-emoji">☀️</div>
+        <div class="time-picker-row">
+          <select class="time-select" id="wakeup-hour"></select>
+          <div class="time-colon">:</div>
+          <select class="time-select" id="wakeup-min"></select>
+        </div>
+        <div class="event-date-label" id="wakeup-date-label"></div>
+      </div>
+
+      <div class="status-banner success" id="wakeup-status-banner">✅ 報備完成！</div>
+      <div class="status-banner warn" id="wakeup-warn-banner"></div>
+
+      <div class="name-label">揀你個名</div>
+      <div class="name-grid" id="wakeup-name-grid"></div>
+
+      <div class="declaration">
+        我 <span class="chosen-name" id="wakeup-chosen-name">___</span> 於以上時間瞓醒。
+      </div>
+
+      <div class="consent-row" id="wakeup-consent" onclick="toggleConsent('wakeup')">
+        <div class="custom-check" id="wakeup-check"></div>
+        <div class="consent-text">本人確認屬實，真係瞓醒咗。</div>
+      </div>
+
+      <button class="submit-btn" id="wakeup-btn" disabled onclick="submitEvent('wakeup')">瞓醒 ☀️</button>
+      <div class="saving-indicator" id="wakeup-saving"></div>
+    </div>
+    <div class="locked-screen" id="wakeup-locked">
+      <div class="locked-icon">☀️</div>
+      <div class="locked-title">今日已報備</div>
+      <div class="locked-sub" id="wakeup-locked-sub"></div>
+    </div>
+  </div>
+
+  <!-- SLEEP PAGE -->
+  <div class="page" id="page-sleep">
+    <div class="form-page" id="sleep-form">
+      <div class="event-card">
+        <div class="event-emoji">🌙</div>
+        <div class="time-picker-row">
+          <select class="time-select" id="sleep-hour"></select>
+          <div class="time-colon">:</div>
+          <select class="time-select" id="sleep-min"></select>
+        </div>
+        <div class="event-date-label" id="sleep-date-label"></div>
+      </div>
+
+      <div class="status-banner success" id="sleep-status-banner">✅ 報備完成！</div>
+      <div class="status-banner warn" id="sleep-warn-banner"></div>
+
+      <div class="name-label">揀你個名</div>
+      <div class="name-grid" id="sleep-name-grid"></div>
+
+      <div class="declaration">
+        我 <span class="chosen-name" id="sleep-chosen-name">___</span> 於以上時間熄燈。
+      </div>
+
+      <div class="consent-row" id="sleep-consent" onclick="toggleConsent('sleep')">
+        <div class="custom-check" id="sleep-check"></div>
+        <div class="consent-text">本人確認屬實，真係熄燈喇。</div>
+      </div>
+
+      <button class="submit-btn" id="sleep-btn" disabled onclick="submitEvent('sleep')">熄燈 🌙</button>
+      <div class="saving-indicator" id="sleep-saving"></div>
+    </div>
+    <div class="locked-screen" id="sleep-locked">
+      <div class="locked-icon">🌙</div>
+      <div class="locked-title">今日已熄燈</div>
+      <div class="locked-sub">等你聽日瞓醒報備後先解鎖 ☀️</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD PAGE -->
+  <div class="page" id="page-dashboard">
+    <div class="dashboard-page">
+      <div class="dashboard-date" id="dashboard-date"></div>
+
+      <div class="board-card">
+        <div class="board-title">🏆 乖乖榜</div>
+        <div id="board-content"><div class="board-pending">載入中...</div></div>
+      </div>
+
+      <div class="section-label">☀️ 瞓醒報備</div>
+      <div id="dash-wakeup"></div>
+      <div class="section-label">🌙 熄燈報備</div>
+      <div id="dash-sleep"></div>
+      <div class="section-label">💧 飲水報備（今個鐘）</div>
+      <div id="dash-water"></div>
+      <button class="dashboard-refresh" onclick="loadDashboard()">重新整理</button>
+    </div>
+  </div>
+
+</div>
+<div class="flash-overlay" id="flash-overlay"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC1huN38u1a9rG0ACDypo0zP4e8pXohA_w",
+    authDomain: "pobei-la.firebaseapp.com",
+    databaseURL: "https://pobei-la-default-rtdb.firebaseio.com",
+    projectId: "pobei-la",
+    storageBucket: "pobei-la.firebasestorage.app",
+    messagingSenderId: "283022203744",
+    appId: "1:283022203744:web:a8bef18e25bce8b9d1dc05",
+    measurementId: "G-W5WVKKRXJQ"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const NAMES = ['KING', 'AYU', 'CHA', 'HEI', 'BEAR', 'LUNG'];
+
+  // ── state ──
+  const state = {
+    water:  { name: null, consented: false, submitted: false },
+    wakeup: { name: null, consented: false, submitted: false },
+    sleep:  { name: null, consented: false, submitted: false }
+  };
+
+  let waterHour = -1;
+  let tzAbbr = '';
+
+  // ── helpers ──
+  function getTzAbbr() {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short', hour: 'numeric' }).formatToParts(new Date());
+      const tz = parts.find(p => p.type === 'timeZoneName');
+      if (tz) return tz.value;
+    } catch(e) {}
+    const offset = -new Date().getTimezoneOffset();
+    const sign = offset >= 0 ? '+' : '-';
+    return `UTC${sign}${String(Math.floor(Math.abs(offset)/60)).padStart(2,'0')}:${String(Math.abs(offset)%60).padStart(2,'0')}`;
+  }
+
+  function getDateKey() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  }
+
+  function getHourKey() {
+    return `${getDateKey()}-${String(new Date().getHours()).padStart(2,'0')}`;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function flash() {
+    const el = document.getElementById('flash-overlay');
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 600);
+  }
+
+  // ── localStorage keys ──
+  const LS = {
+    waterHour:    () => localStorage.getItem('water_hour'),
+    setWaterHour: (k) => localStorage.setItem('water_hour', k),
+    wakeupDate:    () => localStorage.getItem('wakeup_date'),
+    setWakeupDate: (d) => localStorage.setItem('wakeup_date', d),
+    wakeupName:    () => localStorage.getItem('wakeup_name'),
+    setWakeupName: (n) => localStorage.setItem('wakeup_name', n),
+    sleepDone:    () => localStorage.getItem('sleep_done') === '1',
+    setSleepDone: ()  => localStorage.setItem('sleep_done', '1'),
+    clearSleep:   ()  => localStorage.removeItem('sleep_done'),
+  };
+
+  // ── tab switch ──
+  window.switchTab = function(tab) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', ['water','wakeup','sleep','dashboard'][i] === tab);
+    });
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + tab).classList.add('active');
+    if (tab === 'dashboard') loadDashboard();
+  };
+
+  // ── clock / water reset ──
+  function updateClock() {
+    const now = new Date();
+    const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+    document.getElementById('clock').textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    if (!tzAbbr) { tzAbbr = getTzAbbr(); document.getElementById('tz-label').textContent = tzAbbr; }
+
+    const elapsed = m * 60 + s;
+    document.getElementById('timer-bar').style.width = (elapsed / 3600 * 100) + '%';
+    const rem = 3600 - elapsed;
+    document.getElementById('timer-label').textContent =
+      `距下次報備 ${String(Math.floor(rem/60)).padStart(2,'0')}:${String(rem%60).padStart(2,'0')}`;
+
+    if (h !== waterHour) { waterHour = h; resetWater(); }
+  }
+
+  // ── name grids ──
+  function buildNameGrids() {
+    ['water','wakeup','sleep'].forEach(type => {
+      const grid = document.getElementById(`${type}-name-grid`);
+      NAMES.forEach(name => {
+        const btn = document.createElement('button');
+        btn.className = 'name-btn';
+        btn.textContent = name;
+        btn.dataset.name = name;
+        btn.onclick = () => selectName(type, name);
+        grid.appendChild(btn);
+      });
+    });
+  }
+
+  function selectName(type, name) {
+    if (state[type].submitted) return;
+    state[type].name = name;
+    document.querySelectorAll(`#${type}-name-grid .name-btn`).forEach(b => {
+      b.classList.toggle('selected', b.dataset.name === name);
+    });
+    document.getElementById(`${type}-chosen-name`).textContent = name;
+    checkReady(type);
+  }
+
+  function lockNameGrid(type) {
+    document.querySelectorAll(`#${type}-name-grid .name-btn`).forEach(b => b.disabled = true);
+  }
+
+  // ── consent ──
+  window.toggleConsent = function(type) {
+    if (state[type].submitted) return;
+    state[type].consented = !state[type].consented;
+    document.getElementById(`${type}-consent`).classList.toggle('checked', state[type].consented);
+    document.getElementById(`${type}-check`).textContent = state[type].consented ? '✓' : '';
+    checkReady(type);
+  };
+
+  function checkReady(type) {
+    if (state[type].submitted) return;
+    const btn = document.getElementById(`${type}-btn`);
+    const ok = !!state[type].name && state[type].consented;
+    btn.disabled = !ok;
+    btn.className = ok ? 'submit-btn ready' : 'submit-btn';
+  }
+
+  // ── WATER ──
+  function resetWater() {
+    state.water = { name: null, consented: false, submitted: false };
+    document.getElementById('water-consent').classList.remove('checked', 'disabled');
+    document.getElementById('water-check').textContent = '';
+    document.getElementById('water-consent').style.pointerEvents = '';
+    document.querySelectorAll('#water-name-grid .name-btn').forEach(b => { b.disabled = false; b.classList.remove('selected'); });
+    document.getElementById('water-chosen-name').textContent = '___';
+    const btn = document.getElementById('water-btn');
+    btn.disabled = true; btn.className = 'submit-btn'; btn.textContent = '水已飲 ✅';
+    document.getElementById('water-status-banner').classList.remove('show');
+    document.getElementById('water-warn-banner').classList.remove('show');
+    document.getElementById('water-saving').textContent = '';
+
+    // check if this device already submitted this hour
+    if (LS.waterHour() === getHourKey()) {
+      showWaterLocked();
+    }
+  }
+
+  function showWaterLocked() {
+    state.water.submitted = true;
+    lockNameGrid('water');
+    document.getElementById('water-consent').classList.add('disabled');
+    document.getElementById('water-btn').className = 'submit-btn done';
+    document.getElementById('water-btn').textContent = '✅ 已報備';
+    document.getElementById('water-btn').disabled = true;
+    document.getElementById('water-status-banner').classList.add('show');
+    document.getElementById('water-saving').textContent = '此裝置今個鐘已報備';
+  }
+
+  window.submitWater = async function() {
+    if (state.water.submitted) return;
+    if (!state.water.name || !state.water.consented) return;
+
+    // device lock
+    LS.setWaterHour(getHourKey());
+    state.water.submitted = true;
+    flash();
+    lockNameGrid('water');
+    document.getElementById('water-consent').style.pointerEvents = 'none';
+    document.getElementById('water-btn').className = 'submit-btn done';
+    document.getElementById('water-btn').textContent = '✅ 已報備';
+    document.getElementById('water-btn').disabled = true;
+    document.getElementById('water-status-banner').classList.add('show');
+    const ind = document.getElementById('water-saving');
+    ind.textContent = '同步中...';
+    try {
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const hh = String(now.getHours()).padStart(2,'0');
+      await set(ref(db, `water/${getDateKey()}/${hh}/${state.water.name}`), { name: state.water.name, time: timeStr, tz: tzAbbr, ts: now.getTime() });
+      ind.textContent = '✅ 已同步到雲端';
+    } catch(e) { ind.textContent = '⚠️ 同步失敗，請截圖'; }
+  };
+
+  // ── WAKEUP / SLEEP pickers ──
+  function initPickers() {
+    ['wakeup','sleep'].forEach(type => {
+      const hSel = document.getElementById(`${type}-hour`);
+      const mSel = document.getElementById(`${type}-min`);
+      for (let i = 0; i < 24; i++) { const o = document.createElement('option'); o.value = i; o.textContent = String(i).padStart(2,'0'); hSel.appendChild(o); }
+      for (let i = 0; i < 60; i++) { const o = document.createElement('option'); o.value = i; o.textContent = String(i).padStart(2,'0'); mSel.appendChild(o); }
+      const now = new Date();
+      hSel.value = now.getHours();
+      mSel.value = now.getMinutes();
+      document.getElementById(`${type}-date-label`).textContent = getDateKey();
+    });
+  }
+
+  function getPickerMinutes(type) {
+    return parseInt(document.getElementById(`${type}-hour`).value) * 60 + parseInt(document.getElementById(`${type}-min`).value);
+  }
+
+  function nowMinutes() {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  }
+
+  // ── WAKEUP submit ──
+  window.submitEvent = async function(type) {
+    if (state[type].submitted) return;
+    if (!state[type].name || !state[type].consented) return;
+
+    // time validation
+    const picked = getPickerMinutes(type);
+    const now = nowMinutes();
+    const warn = document.getElementById(`${type}-warn-banner`);
+
+    if (type === 'wakeup' && picked > now + 1) {
+      warn.textContent = '⚠️ 唔可以揀未來時間';
+      warn.classList.add('show');
+      setTimeout(() => warn.classList.remove('show'), 3000);
+      return;
+    }
+    if (type === 'sleep' && picked < now - 1) {
+      warn.textContent = '⚠️ 唔可以揀過去時間';
+      warn.classList.add('show');
+      setTimeout(() => warn.classList.remove('show'), 3000);
+      return;
+    }
+
+    // lock
+    if (type === 'wakeup') {
+      LS.setWakeupDate(getDateKey());
+      LS.setWakeupName(state.wakeup.name);
+      LS.clearSleep(); // wakeup clears sleep lock
+    }
+    if (type === 'sleep') {
+      LS.setSleepDone();
+    }
+
+    state[type].submitted = true;
+    flash();
+    lockNameGrid(type);
+    document.getElementById(`${type}-consent`).style.pointerEvents = 'none';
+    document.getElementById(`${type}-btn`).className = 'submit-btn done';
+    document.getElementById(`${type}-btn`).textContent = '✅ 已報備';
+    document.getElementById(`${type}-btn`).disabled = true;
+    document.getElementById(`${type}-status-banner`).classList.add('show');
+
+    const hv = document.getElementById(`${type}-hour`).value;
+    const mv = document.getElementById(`${type}-min`).value;
+    const timeStr = `${String(hv).padStart(2,'0')}:${String(mv).padStart(2,'0')}`;
+
+    const ind = document.getElementById(`${type}-saving`);
+    ind.textContent = '同步中...';
+    try {
+      await set(ref(db, `${type}/${getDateKey()}/${state[type].name}`), { name: state[type].name, time: timeStr, tz: tzAbbr, ts: Date.now() });
+      ind.textContent = '✅ 已同步到雲端';
+      // show locked screen after short delay
+      setTimeout(() => showLockedScreen(type), 1200);
+    } catch(e) { ind.textContent = '⚠️ 同步失敗，請截圖'; }
+  };
+
+  function showLockedScreen(type) {
+    document.getElementById(`${type}-form`).style.display = 'none';
+    const locked = document.getElementById(`${type}-locked`);
+    locked.classList.add('show');
+    if (type === 'wakeup') {
+      document.getElementById('wakeup-locked-sub').textContent =
+        `${LS.wakeupName()} · ${getDateKey()}\n明日 00:00 後重置`;
+    }
+  }
+
+  // ── check locks on load / tab switch ──
+  function checkWakeupLock() {
+    if (LS.wakeupDate() === getDateKey()) {
+      document.getElementById('wakeup-form').style.display = 'none';
+      document.getElementById('wakeup-locked').classList.add('show');
+      document.getElementById('wakeup-locked-sub').textContent =
+        `${LS.wakeupName()} · ${getDateKey()}\n明日 00:00 後重置`;
+    }
+  }
+
+  function checkSleepLock() {
+    if (LS.sleepDone()) {
+      document.getElementById('sleep-form').style.display = 'none';
+      document.getElementById('sleep-locked').classList.add('show');
+    }
+  }
+
+  // ── dashboard ──
+  window.loadDashboard = async function() {
+    const dateKey = getDateKey();
+    const hourKey = getHourKey();
+    const now = new Date();
+    document.getElementById('dashboard-date').textContent =
+      `${dateKey}　今個鐘 ${String(now.getHours()).padStart(2,'0')}:00–${String(now.getHours()).padStart(2,'0')}:59`;
+
+    async function loadSection(elId, path) {
+      const el = document.getElementById(elId);
+      el.innerHTML = '<div class="section-empty">載入中...</div>';
+      try {
+        const snap = await get(child(ref(db), path));
+        if (!snap.exists()) { el.innerHTML = '<div class="section-empty">暫時冇人報備</div>'; return; }
+        const people = Object.values(snap.val()).sort((a,b) => a.ts - b.ts);
+        el.innerHTML = people.map(p => `
+          <div class="person-card done">
+            <div class="person-status-icon">✅</div>
+            <div class="person-info">
+              <div class="person-name">${escapeHtml(p.name)}</div>
+              <div class="person-time">${p.time} ${p.tz}</div>
+            </div>
+          </div>`).join('');
+      } catch(e) { el.innerHTML = '<div class="section-empty">載入失敗</div>'; }
+    }
+
+    const currentHH = String(now.getHours()).padStart(2,'0');
+    loadSection('dash-wakeup', `wakeup/${dateKey}`);
+    loadSection('dash-sleep',  `sleep/${dateKey}`);
+    loadSection('dash-water',  `water/${dateKey}/${currentHH}`);
+
+    await loadBoard();
+  };
+
+  // ── 乖乖榜 ──
+  function getHKTDateKey(offsetDays = 0) {
+    const d = new Date(Date.now() + 8 * 3600000);
+    d.setUTCDate(d.getUTCDate() + offsetDays);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+
+  function getHKTHour() {
+    return new Date(Date.now() + 8 * 3600000).getUTCHours();
+  }
+
+  async function loadBoard() {
+    const el = document.getElementById('board-content');
+    const hktHour = getHKTHour();
+
+    if (hktHour < 15) {
+      el.innerHTML = `<div class="board-pending">每日 HKT 15:00 公佈昨日乖乖榜<br>距公佈 ${14 - hktHour} 小時</div>`;
+      return;
+    }
+
+    // fetch yesterday's data
+    const yesterday = getHKTDateKey(-1);
+    const today     = getHKTDateKey(0);
+
+    try {
+      const [waterSnap, sleepSnap, wakeupSnap] = await Promise.all([
+        get(child(ref(db), `water/${yesterday}`)),
+        get(child(ref(db), `sleep/${yesterday}`)),
+        get(child(ref(db), `wakeup/${today}`)),
+      ]);
+
+      // 最乖飲水機器：count water entries per person across all hours yesterday
+      const waterCount = {};
+      if (waterSnap.exists()) {
+        Object.values(waterSnap.val()).forEach(hourData => {
+          Object.values(hourData).forEach(entry => {
+            waterCount[entry.name] = (waterCount[entry.name] || 0) + 1;
+          });
+        });
+      }
+      let maxWater = 0;
+      Object.values(waterCount).forEach(c => { if (c > maxWater) maxWater = c; });
+      const waterWinners = maxWater > 0 ? Object.keys(waterCount).filter(n => waterCount[n] === maxWater) : [];
+
+      // 最乖瞓覺人材：closest sleep duration to 8 hours, must have both sleep + wakeup
+      const sleepData  = sleepSnap.exists()  ? sleepSnap.val()  : {};
+      const wakeupData = wakeupSnap.exists() ? wakeupSnap.val() : {};
+
+      const diffs = {};
+      Object.values(wakeupData).forEach(w => {
+        const s = sleepData[w.name];
+        if (!s) return;
+        const [wH, wM] = w.time.split(':').map(Number);
+        const [sH, sM] = s.time.split(':').map(Number);
+        const wakeMin  = wH * 60 + wM;
+        const sleepMin = sH * 60 + sM;
+        const duration = wakeMin >= sleepMin
+          ? wakeMin - sleepMin
+          : 1440 - sleepMin + wakeMin;
+        diffs[w.name] = Math.abs(duration - 480); // diff from 8h
+      });
+
+      let minDiff = Infinity;
+      Object.values(diffs).forEach(d => { if (d < minDiff) minDiff = d; });
+      const sleepWinners = minDiff < Infinity ? Object.keys(diffs).filter(n => diffs[n] === minDiff) : [];
+
+      const fmt = (winners, emptyMsg) =>
+        winners.length > 0
+          ? `<span class="board-names">${winners.map(escapeHtml).join('　')}</span>`
+          : `<span style="font-size:12px;color:var(--text-muted)">${emptyMsg}</span>`;
+
+      el.innerHTML = `
+        <div class="board-row">
+          <div class="board-label">💧 最乖飲水機器</div>
+          ${fmt(waterWinners, '暫無數據')}
+        </div>
+        <div class="board-row">
+          <div class="board-label">🌙 最乖瞓覺人材</div>
+          ${fmt(sleepWinners, '暫無數據')}
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);text-align:right;margin-top:8px">${yesterday} 數據</div>
+      `;
+    } catch(e) {
+      el.innerHTML = '<div class="board-pending">載入失敗</div>';
+    }
+  }
+
+  // ── init ──
+  buildNameGrids();
+  initPickers();
+  checkWakeupLock();
+  checkSleepLock();
+  updateClock();
+  setInterval(updateClock, 1000);
+</script>
+</body>
+</html>
