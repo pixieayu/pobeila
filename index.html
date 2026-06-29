@@ -448,6 +448,11 @@
   <div class="page" id="page-dashboard">
     <div class="dashboard-page">
       <div class="dashboard-date" id="dashboard-date"></div>
+      <div class="board-card" style="border-color:#90C8E8;">
+        <div class="board-title" style="color:#1A7FBF;">💧 今日飲水排名</div>
+        <div id="water-rank-content"><div class="board-pending">載入中...</div></div>
+      </div>
+
       <div class="board-card">
         <div class="board-title">🏆 乖乖榜</div>
         <div id="board-content"><div class="board-pending">載入中...</div></div>
@@ -695,19 +700,11 @@
       setTimeout(() => warn.classList.remove('show'), 3000);
       return;
     }
-    if (type === 'sleep' && picked < now - 1) {
-      warn.textContent = '⚠️ 唔可以揀過去時間';
-      warn.classList.add('show');
-      setTimeout(() => warn.classList.remove('show'), 3000);
-      return;
-    }
 
     if (type === 'wakeup') {
       LS.setWakeupDate(getDateKey());
       LS.setWakeupName(state.wakeup.name);
-      LS.clearSleep();
     }
-    if (type === 'sleep') { LS.setSleepDone(); }
 
     state[type].submitted = true;
     flash();
@@ -738,7 +735,8 @@
     try {
       await set(ref(db, `${type}/${getDateKey()}/${state[type].name}`), { name: state[type].name, time: timeStr, tz: tzAbbr, ts: Date.now() });
       ind.textContent = '✅ 已同步到雲端';
-      setTimeout(() => showLockedScreen(type), 1200);
+      if (type === 'wakeup') setTimeout(() => showLockedScreen(type), 1200);
+      if (type === 'sleep') setTimeout(() => resetSleep(), 1500);
     } catch(e) { ind.textContent = '⚠️ 同步失敗，請截圖'; }
   };
 
@@ -751,6 +749,19 @@
     }
   }
 
+  function resetSleep() {
+    state.sleep = { name: null, consented: false, submitted: false };
+    document.getElementById('sleep-consent').classList.remove('checked');
+    document.getElementById('sleep-check').textContent = '';
+    document.getElementById('sleep-consent').style.pointerEvents = '';
+    document.querySelectorAll('#sleep-name-grid .name-btn').forEach(b => { b.disabled = false; b.classList.remove('selected'); });
+    document.getElementById('sleep-chosen-name').textContent = '___';
+    const btn = document.getElementById('sleep-btn');
+    btn.disabled = true; btn.className = 'submit-btn'; btn.textContent = '熄燈 🌙';
+    document.getElementById('sleep-status-banner').classList.remove('show');
+    document.getElementById('sleep-saving').textContent = '';
+  }
+
   function checkWakeupLock() {
     if (LS.wakeupDate() === getDateKey()) {
       document.getElementById('wakeup-form').style.display = 'none';
@@ -761,10 +772,7 @@
   }
 
   function checkSleepLock() {
-    if (LS.sleepDone()) {
-      document.getElementById('sleep-form').style.display = 'none';
-      document.getElementById('sleep-locked').classList.add('show');
-    }
+    // sleep has no lock — always open
   }
 
   window.loadDashboard = async function() {
@@ -794,8 +802,30 @@
     loadSection('dash-wakeup', `wakeup/${dateKey}`);
     loadSection('dash-sleep',  `sleep/${dateKey}`);
     loadSection('dash-water',  `water/${getUTCDateKey()}/${getUTCHourStr()}`);
+    await loadWaterRanking();
     await loadBoard();
   };
+
+  async function loadWaterRanking() {
+    const el = document.getElementById('water-rank-content');
+    el.innerHTML = '<div class="board-pending">載入中...</div>';
+    try {
+      const snap = await get(child(ref(db), `water/${getUTCDateKey()}`));
+      if (!snap.exists()) { el.innerHTML = '<div class="board-pending">今日暫時冇人飲水</div>'; return; }
+      const count = {};
+      Object.values(snap.val()).forEach(hourData => {
+        Object.values(hourData).forEach(entry => {
+          count[entry.name] = (count[entry.name] || 0) + 1;
+        });
+      });
+      const ranked = Object.entries(count).sort((a,b) => b[1] - a[1]);
+      el.innerHTML = ranked.map(([name, c], i) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #F0F4F8">
+          <span style="font-size:13px;color:var(--text-muted)">${i+1}. <strong style="color:var(--text)">${escapeHtml(name)}</strong></span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent)">${c} 次</span>
+        </div>`).join('');
+    } catch(e) { el.innerHTML = '<div class="board-pending">載入失敗</div>'; }
+  }
 
   function getHKTDateKey(offsetDays = 0) {
     const d = new Date(Date.now() + 8 * 3600000);
@@ -817,9 +847,10 @@
     const yesterday = getHKTDateKey(-1);
     const today     = getHKTDateKey(0);
     try {
-      const [waterSnap, sleepSnap, wakeupSnap] = await Promise.all([
+      const [waterSnap, sleepYestSnap, sleepTodaySnap, wakeupSnap] = await Promise.all([
         get(child(ref(db), `water/${yesterday}`)),
         get(child(ref(db), `sleep/${yesterday}`)),
+        get(child(ref(db), `sleep/${today}`)),
         get(child(ref(db), `wakeup/${today}`)),
       ]);
 
@@ -835,7 +866,15 @@
       Object.values(waterCount).forEach(c => { if (c > maxWater) maxWater = c; });
       const waterWinners = maxWater > 0 ? Object.keys(waterCount).filter(n => waterCount[n] === maxWater) : [];
 
-      const sleepData  = sleepSnap.exists()  ? sleepSnap.val()  : {};
+      // merge yesterday's sleep + today's early-morning sleep (before 06:00)
+      const sleepData = sleepYestSnap.exists() ? { ...sleepYestSnap.val() } : {};
+      if (sleepTodaySnap.exists()) {
+        Object.values(sleepTodaySnap.val()).forEach(entry => {
+          const [h] = entry.time.split(':').map(Number);
+          if (h < 6 || h >= 20) sleepData[entry.name] = entry;
+        });
+      }
+
       const wakeupData = wakeupSnap.exists() ? wakeupSnap.val() : {};
       const diffs = {};
       Object.values(wakeupData).forEach(w => {
@@ -852,19 +891,19 @@
       Object.values(diffs).forEach(d => { if (d < minDiff) minDiff = d; });
       const sleepWinners = minDiff < Infinity ? Object.keys(diffs).filter(n => diffs[n] === minDiff) : [];
 
-      const fmt = (winners, emptyMsg) =>
-        winners.length > 0
-          ? `<span class="board-names">${winners.map(escapeHtml).join('　')}</span>`
-          : `<span style="font-size:12px;color:var(--text-muted)">${emptyMsg}</span>`;
+      const sleepWinnerHtml = sleepWinners.length > 0
+        ? sleepWinners.map(name => {
+            const s = sleepData[name];
+            const w = Object.values(wakeupData).find(x => x.name === name);
+            const timeStr = (s && w) ? `<span style="font-size:11px;color:var(--text-muted);font-family:'Share Tech Mono',monospace"> ${s.time}–${w.time}</span>` : '';
+            return `<span class="board-names">${escapeHtml(name)}${timeStr}</span>`;
+          }).join(' ')
+        : `<span style="font-size:12px;color:var(--text-muted)">暫無數據</span>`;
 
       el.innerHTML = `
         <div class="board-row">
-          <div class="board-label">💧 最乖飲水機器</div>
-          ${fmt(waterWinners, '暫無數據')}
-        </div>
-        <div class="board-row">
           <div class="board-label">🌙 最乖瞓覺人材</div>
-          ${fmt(sleepWinners, '暫無數據')}
+          ${sleepWinnerHtml}
         </div>
         <div style="font-size:10px;color:var(--text-muted);text-align:right;margin-top:8px">${yesterday} 數據</div>
       `;
